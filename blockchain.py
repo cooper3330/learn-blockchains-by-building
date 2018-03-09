@@ -1,9 +1,9 @@
 import hashlib
 import json
 from time import time
-from flask import Flask
 from textwrap import dedent
 from uuid import uuid4
+from flask import Flask, jsonify, request
 
 class Blockchain(object):
 
@@ -112,8 +112,19 @@ def mine:
     return "We'll mine a new block"
 
 @app.route('/transactions/new', methods=['POST'])
-def new_transaction:
-    return "We'll add a new transaction"
+def new_transaction():
+    transaction_obj = request.get_json()
+
+    required_params = ['sender', 'recipient', 'amount']
+    if not all(param in transaction_obj for param in required_params):
+        return 'Missing a required parameter: ' + param, 400
+
+    block_index = blockchain.new_transaction(transaction_obj['sender'], transaction_obj['recipient'], transaction_obj['amount'])
+
+    response = {
+        'message' : f'Transaction will be added to Block {block_index}'
+    }
+    return jsonify(response), 201
 
 @app.route('/chain', methods=['GET'])
 def full_chain:
