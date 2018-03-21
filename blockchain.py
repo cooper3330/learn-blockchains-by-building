@@ -5,36 +5,36 @@ from textwrap import dedent
 from uuid import uuid4
 from flask import Flask, jsonify, request
 
-class Blockchain(object):
 
+class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
 
         # Create Genesis Block
-        self.new_block(proof=100, previous_hash=1))
+        self.new_block(proof=100, previous_hash=1)
 
     def new_block(self, proof, previous_hash=None):
-	"""
-	Create a new Block in the Blockchain
-    :param proof: <int> The proof given by the Proof of Work algorithm
-    :param previous_hash: (Optional) <str> Hash of previous Block
-    :return: <dict> New Block
-    """
+        """
+        Create a new Block in the Blockchain
+        :param proof: <int> The proof given by the Proof of Work algorithm
+        :param previous_hash: (Optional) <str> Hash of previous Block
+        :return: <dict> New Block
+        """
 
-	block = {
-        'index' : len(self.chain) + 1,
-        'transations' : self.current_transactions,
-        'timestamp' : time(),
-        'previous_hash' : previous_hash or self.hash(last_block),
-        'proof' : proof
-	}
+        block = {
+            'index' : len(self.chain) + 1,
+            'transactions' : self.current_transactions,
+            'timestamp' : time(),
+            'previous_hash' : previous_hash or self.hash(self.last_block),
+            'proof' : proof
+        }
 
-    #Reset the current transactions
-    self.current_transactions = []
+        # Reset the current transactions
+        self.current_transactions = []
 
-    self.chain.append(block)
-    return block
+        self.chain.append(block)
+        return block
 
     def new_transaction(self, sender, recipient, amount):
         """
@@ -55,7 +55,7 @@ class Blockchain(object):
 
     @staticmethod
     def hash(block):
-         """
+        """
         Creates a SHA-256 hash of a Block
         :param block: <dict> Block
         :return: <str>
@@ -63,7 +63,7 @@ class Blockchain(object):
 
         # We must make sure that the Dictionary is Ordered, or we'll have inconsistent hashes
         block_str = json.dumps(block, sort_keys=True).encode()
-        return hashlib.sha256(block_string).hexdigest()
+        return hashlib.sha256(block_str).hexdigest()
 
     @property
     def last_block(self):
@@ -98,6 +98,7 @@ class Blockchain(object):
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:4] == "0000"
 
+
 # Instantiate App
 app = Flask(__name__)
 
@@ -107,17 +108,43 @@ node_identifier = str(uuid4()).replace('-','')
 # Instantiate Blockchain
 blockchain = Blockchain()
 
+
 @app.route('/mine', methods=['GET'])
-def mine:
-    return "We'll mine a new block"
+def mine():
+    # Run the proof of work algorithm to get the next proof
+    last_block = blockchain.last_block
+    last_proof = last_block['proof']
+    proof = blockchain.proof_of_work(last_proof)
+
+    # Add a new transaction for the mined block with 0 as the sender to mark this block mined
+    blockchain.new_transaction(
+        sender="0",
+        recipient=node_identifier,
+        amount=1
+    )
+
+    # Add the new block to the chain
+    previous_hash = blockchain.hash(last_block)
+    block = blockchain.new_block(proof, previous_hash)
+
+    response = {
+        'message': 'New Block Forged',
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash']
+    }
+
+    return jsonify(response), 200
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     transaction_obj = request.get_json()
 
     required_params = ['sender', 'recipient', 'amount']
+
     if not all(param in transaction_obj for param in required_params):
-        return 'Missing a required parameter: ' + param, 400
+        return f'Missing a required parameter: {param}', 400
 
     block_index = blockchain.new_transaction(transaction_obj['sender'], transaction_obj['recipient'], transaction_obj['amount'])
 
@@ -127,7 +154,7 @@ def new_transaction():
     return jsonify(response), 201
 
 @app.route('/chain', methods=['GET'])
-def full_chain:
+def full_chain():
     response = {
         'chain' : blockchain.chain,
         'length' : len(blockchain.chain)
